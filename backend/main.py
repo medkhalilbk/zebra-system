@@ -4,6 +4,7 @@ from simulator import ZebraFX9600Simulator
 from pydantic import BaseModel
 import asyncio
 import json
+import httpx  # We use httpx for async POSTs
 
 app = FastAPI()
 
@@ -24,6 +25,7 @@ simulator = ZebraFX9600Simulator()
 class TagConfig(BaseModel):
     tag_count: int
     interval: float
+    webhook_url: str | None = None  # Optional webhook
 
 async def broadcast_message(message: str):
     """Send message to all connected WebSocket clients."""
@@ -47,7 +49,23 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.post("/api/start_simulation")
 async def start_simulation(config: TagConfig):
-    simulator.start_simulation(config.tag_count, config.interval, broadcast_message)
+    """Start simulation and optionally post messages to the webhook URL."""
+    # Wrap the broadcast function so it also posts to webhook
+    async def combined_broadcast(message: str):
+        await broadcast_message(message)
+        if config.webhook_url:
+            async with httpx.AsyncClient() as client:
+                try:
+                    response = await client.post(
+                        config.webhook_url,
+                        json=json.loads(message),
+                        timeout=5
+                    )
+                    response.raise_for_status()
+                except Exception as e:
+                    print(f"Error posting to webhook: {e}")
+
+    simulator.start_simulation(config.tag_count, config.interval, combined_broadcast)
     return {"status": "Simulation started"}
 
 @app.post("/api/stop_simulation")

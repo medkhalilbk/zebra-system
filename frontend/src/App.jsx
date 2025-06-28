@@ -49,6 +49,8 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [useMQTT, setUseMQTT] = useState(true)
   const [useWebhook, setUseWebhook] = useState(false)
+  const [webhookUrl, setWebhookUrl] = useState('')
+
   const toast = useToast()
 
   useEffect(() => {
@@ -62,6 +64,7 @@ function App() {
     websocket.onmessage = (event) => {
       const data = JSON.parse(event.data)
       if (data?.tag_reads) {
+        if(!isRunning) {setIsRunning(true)}
         setTags(prev => [...data.tag_reads, ...prev].slice(0, 50))
         setLatestPayload(data)
       }
@@ -88,10 +91,9 @@ function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tag_count: parseInt(tagCount),
-          interval: parseFloat(interval),
-          use_mqtt: useMQTT,
-          use_webhook: useWebhook,
+        tag_count: parseInt(tagCount),
+    interval: parseFloat(interval),
+    webhook_url: useWebhook ? webhookUrl : null,
         }),
       })
       if (res.ok) {
@@ -134,6 +136,7 @@ function App() {
           Zebra FX9600 RFID Simulator
         </Heading>
 
+
         <Box p={4} bg="gray.100" borderRadius="lg" mb={6}>
           <HStack justify="space-between">
             <Text fontWeight="bold">Simulation Status</Text>
@@ -172,8 +175,22 @@ function App() {
                 isDisabled={isRunning}
               />
             </FormControl>
+            
           </HStack>
-
+{useWebhook && (
+  <FormControl mt={4}>
+    <FormLabel>Webhook URL</FormLabel>
+    <Input
+      placeholder="https://your-webhook-endpoint"
+      value={webhookUrl}
+      onChange={(e) => setWebhookUrl(e.target.value)}
+      isDisabled={isRunning}
+    />
+    <FormHelperText>
+      The server will POST JSON data to this URL on every emission.
+    </FormHelperText>
+  </FormControl>
+)}
           {/* Important : FormHelperText must be inside FormControl */}
           <FormControl>
             <FormHelperText mt={2} color="gray.600" maxW="400px">
